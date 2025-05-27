@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Interactive To-Do List</title>
+  <style>
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      background-color: #f4f4f4;
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+    .dark-mode {
+      background-color: #333;
+      color: #f4f4f4;
+    }
+    .todo-container {
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      width: 320px;
+      transition: background-color 0.3s ease;
+    }
+    .dark-mode .todo-container {
+      background: #444;
+    }
+    h1 {
+      font-size: 24px;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    .input-section {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+    input[type="text"] {
+      flex-grow: 1;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    button {
+      padding: 10px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    #add-btn {
+      background-color: #28a745;
+      color: #fff;
+    }
+    #add-btn:hover {
+      background-color: #218838;
+    }
+    ul {
+      list-style: none;
+      padding: 0;
+      margin-bottom: 15px;
+    }
+    li {
+      background: #fafafa;
+      padding: 10px;
+      margin-bottom: 5px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: background-color 0.3s ease, transform 0.3s ease;
+      opacity: 0;
+      transform: translateY(10px);
+      animation: fadeIn 0.3s forwards;
+    }
+    .dark-mode li {
+      background: #555;
+    }
+    li.dragging {
+      opacity: 0.5;
+    }
+    li.completed {
+      text-decoration: line-through;
+      color: gray;
+    }
+    .task-text {
+      flex-grow: 1;
+    }
+    .action-buttons button {
+      margin-left: 5px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 5px;
+      border-radius: 4px;
+    }
+    .edit-btn {
+      color: #007bff;
+    }
+    .delete-btn {
+      color: #dc3545;
+    }
+    .action-buttons button:hover {
+      opacity: 0.7;
+    }
+    .task-controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    #task-counter {
+      font-size: 14px;
+    }
+    .filters {
+      margin: 10px 0;
+      display: flex;
+      gap: 5px;
+    }
+    .filter-btn {
+      padding: 5px 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background: none;
+      cursor: pointer;
+      font-size: 14px;
+      width: 100px;
+    }
+    .filter-btn.active {
+      background-color: #007bff;
+      color: #fff;
+      width: 70px;
+    }
+    #clear-completed-btn {
+      background-color: #dc3545;
+      color: #fff;
+      font-size: 14px;
+      width: 100%;
+    }
+    #clear-completed-btn:hover {
+      background-color: #c82333;
+      
+    }
+    @keyframes fadeIn {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    @keyframes slideOut {
+      to {
+        transform: translateX(-100%);
+        opacity: 0;
+      }
+    }
+    #toggle-mode-container {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      z-index: 1000;
+    }
+    #toggle-mode {
+      background: none;
+      border: 1px solid #ccc;
+      border-radius: 50%;
+      padding: 5px;
+      width: 40px;
+      height: 40px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+    #toggle-mode:hover {
+      background-color: #e0e0e0;
+    }
+  </style>
+</head>
+<body>
+  <div id="toggle-mode-container">
+    <button id="toggle-mode">🌙</button>
+  </div>
+  
+  <div class="todo-container">
+    <h1>To-Do List</h1>
+    <div class="input-section">
+      <input type="text" id="todo-input" placeholder="Add a new task...">
+      <button id="add-btn">Add Task</button>
+    </div>
+    <ul id="todo-list"></ul>
+    <div class="task-controls">
+      <span id="task-counter">0 tasks remaining</span>
+      <div class="filters">
+        <button class="filter-btn active" data-filter="all">All</button>
+        <button class="filter-btn" data-filter="active">Active</button>
+        <button class="filter-btn" data-filter="completed">Completed</button>
+      </div>
+      <button id="clear-completed-btn">Clear Completed</button>
+    </div>
+  </div>
+  
+  <script>
+    let tasks = [];
+    let currentFilter = 'all'; 
+    
+    const saveTasks = () => {
+      localStorage.setItem('tasks', JSON.stringify(tasks));
+    };
+
+    const loadTasks = () => {
+      const storedTasks = localStorage.getItem('tasks');
+      if (storedTasks) {
+        tasks = JSON.parse(storedTasks);
+      }
+    };
+
+    const updateCounter = () => {
+      const pendingCount = tasks.filter(task => !task.completed).length;
+      document.getElementById('task-counter').textContent =
+        `${pendingCount} task${pendingCount !== 1 ? 's' : ''} remaining`;
+    };
+
+    const generateId = () => Date.now().toString();
+
+    const renderTasks = () => {
+      const todoList = document.getElementById('todo-list');
+      todoList.innerHTML = '';
+
+      let filteredTasks = tasks;
+      if (currentFilter === 'active') {
+        filteredTasks = tasks.filter(task => !task.completed);
+      } else if (currentFilter === 'completed') {
+        filteredTasks = tasks.filter(task => task.completed);
+      }
+
+      filteredTasks.forEach(task => {
+        const li = document.createElement('li');
+        li.draggable = true;
+        li.dataset.id = task.id;
+
+        li.addEventListener('dragstart', (e) => {
+          li.classList.add('dragging');
+          e.dataTransfer.setData('text/plain', task.id);
+        });
+        li.addEventListener('dragend', () => {
+          li.classList.remove('dragging');
+          saveTasks();
+        });
+        li.addEventListener('dragover', (e) => {
+          e.preventDefault();
+        });
+        li.addEventListener('drop', (e) => {
+          e.preventDefault();
+          const draggedTaskId = e.dataTransfer.getData('text/plain');
+          const targetTaskId = task.id;
+          if (draggedTaskId === targetTaskId) return;
+          const draggedIndex = tasks.findIndex(t => t.id === draggedTaskId);
+          const targetIndex = tasks.findIndex(t => t.id === targetTaskId);
+          const [draggedTask] = tasks.splice(draggedIndex, 1);
+          tasks.splice(targetIndex, 0, draggedTask);
+          renderTasks();
+        });
+
+        const span = document.createElement('span');
+        span.classList.add('task-text');
+        span.textContent = task.text;
+        if (task.completed) {
+          span.style.textDecoration = "line-through";
+          span.style.color = "gray";
+        }
+        li.appendChild(span);
+
+        span.addEventListener('click', () => {
+          task.completed = !task.completed;
+          saveTasks();
+          renderTasks();
+          updateCounter();
+        });
+
+        const actionDiv = document.createElement('div');
+        actionDiv.classList.add('action-buttons');
+
+        const editBtn = document.createElement('button');
+        editBtn.classList.add('edit-btn');
+        editBtn.textContent = 'Edit';
+        editBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const editInput = document.createElement('input');
+          editInput.type = 'text';
+          editInput.value = task.text;
+          editInput.style.flexGrow = '1';
+          li.replaceChild(editInput, span);
+          editInput.focus();
+
+          editInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+              task.text = editInput.value.trim() || task.text;
+              saveTasks();
+              renderTasks();
+            }
+          });
+
+          editInput.addEventListener('blur', () => {
+            task.text = editInput.value.trim() || task.text;
+            saveTasks();
+            renderTasks();
+          });
+        });
+        actionDiv.appendChild(editBtn);
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.classList.add('delete-btn');
+        deleteBtn.textContent = 'Done';
+        deleteBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          li.style.animation = 'slideOut 0.3s forwards';
+          setTimeout(() => {
+            tasks = tasks.filter(t => t.id !== task.id);
+            saveTasks();
+            renderTasks();
+            updateCounter();
+          }, 300);
+        });
+        actionDiv.appendChild(deleteBtn);
+
+        li.appendChild(actionDiv);
+        todoList.appendChild(li);
+      });
+      updateCounter();
+    };
+
+    loadTasks();
+    renderTasks();
+    
+    document.getElementById('add-btn').addEventListener('click', () => {
+      const input = document.getElementById('todo-input');
+      const taskText = input.value.trim();
+      if (taskText === '') return;
+      tasks.push({ id: generateId(), text: taskText, completed: false });
+      input.value = '';
+      saveTasks();
+      renderTasks();
+      updateCounter();
+    });
+
+    document.getElementById('todo-input').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        document.getElementById('add-btn').click();
+      }
+    });
+
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentFilter = btn.dataset.filter;
+        renderTasks();
+      });
+    });
+
+    document.getElementById('clear-completed-btn').addEventListener('click', () => {
+      tasks = tasks.filter(task => !task.completed);
+      saveTasks();
+      renderTasks();
+      updateCounter();
+    });
+
+    const toggleModeBtn = document.getElementById('toggle-mode');
+    toggleModeBtn.addEventListener('click', () => {
+      document.body.classList.toggle('dark-mode');
+    
+      toggleModeBtn.textContent = document.body.classList.contains('dark-mode') ? '☀️' : '🌚';
+    });
+  </script>
+</body>
+</html>
